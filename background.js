@@ -6,9 +6,9 @@ function updateBadge(feeText) {
     if (feeText === 'Error') {
       shortFee = 'Err';
     } else {
-      const numFee = parseFloat(feeText);
+      const feeAmount = Number.parseFloat(feeText);
       // One-liner: Format based on magnitude, max 4 chars
-      shortFee = numFee.toFixed(numFee >= 100 ? 0 : numFee >= 10 ? 1 : 2).slice(0, 4);
+      shortFee = feeAmount.toFixed(feeAmount >= 100 ? 0 : (feeAmount >= 10 ? 1 : 2)).slice(0, 4);
     }
 
     chrome.action.setBadgeText({ text: shortFee });
@@ -52,7 +52,7 @@ function fetchBitcoinFee(forceUpdate = false) {
           console.error('Fetch error:', error);
           if (error instanceof TypeError) {
             console.error('Failed to fetch. Retrying in 30 seconds');
-            setTimeout(fetchBitcoinFee, 30000);
+            setTimeout(fetchBitcoinFee, 30_000);
           } else {
             updateBadge('Error');
           }
