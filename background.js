@@ -21,10 +21,22 @@ function updateBadge(feeText) {
   }
 }
 
-// Rest of the code remains unchanged...
-function fetchBitcoinFee(forceUpdate = false) {
+async function fetchWithRetry(url, options = {}, maxRetries = 6, baseDelay = 1000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response;
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      await new Promise(resolve => setTimeout(resolve, baseDelay * Math.pow(2, attempt - 1)));
+    }
+  }
+}
+
+async function fetchBitcoinFee(forceUpdate = false) {
   console.log('fetchBitcoinFee called');
-  chrome.storage.local.get(['fee', 'lastUpdate'], (result) => {
+  chrome.storage.local.get(['fee', 'lastUpdate'], async (result) => {
     console.log('Storage data retrieved:', result);
     
     const now = Date.now();
@@ -33,30 +45,21 @@ function fetchBitcoinFee(forceUpdate = false) {
 
     if ((now - lastUpdate > 30 * 60 * 1000) || forceUpdate) {
       console.log('Fetching new fee estimate from API');
-      fetch('https://blockstream.info/api/fee-estimates')
-        .then(response => {
-          console.log('API response status:', response.status);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.json();
-        })
-        .then(data => {
-          console.log('API response data:', data);
-          const newFee = data['6'];
-          console.log('New fee (6 blocks):', newFee);
-          chrome.storage.local.set({ fee: newFee, lastUpdate: now }, () => {
-            console.log('Fee and lastUpdate saved to storage');
-          });
-          updateBadge(newFee);
-        })
-        .catch(error => {
-          console.error('Fetch error:', error);
-          if (error instanceof TypeError) {
-            console.error('Failed to fetch. Retrying in 30 seconds');
-            setTimeout(fetchBitcoinFee, 30_000);
-          } else {
-            updateBadge('Error');
-          }
+      try {
+        const response = await fetchWithRetry('https://blockstream.info/api/fee-estimates');
+        console.log('API response status:', response.status);
+        const data = await response.json();
+        console.log('API response data:', data);
+        const newFee = data['6'];
+        console.log('New fee (6 blocks):', newFee);
+        chrome.storage.local.set({ fee: newFee, lastUpdate: now }, () => {
+          console.log('Fee and lastUpdate saved to storage');
         });
+        updateBadge(newFee);
+      } catch (error) {
+        console.error('Fetch error:', error);
+        updateBadge('Error');
+      }
     } else if (result.fee) {
       console.log('Using cached fee:', result.fee);
       updateBadge(result.fee);
