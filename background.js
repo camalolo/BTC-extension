@@ -75,6 +75,18 @@ chrome.action.onClicked.addListener(() => {
   fetchBitcoinFee(true);
 });
 
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Browser started, initializing Bitcoin fee fetch');
+  fetchBitcoinFee();
+});
+
+chrome.idle.onStateChanged.addListener((state) => {
+  if (state === 'active') {
+    console.log('System woke from idle, refreshing Bitcoin fee');
+    fetchBitcoinFee();
+  }
+});
+
 console.log('Extension loaded, initiating first fetch');
 fetchBitcoinFee();
 
